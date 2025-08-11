@@ -27,14 +27,12 @@ async def refresh_app_state(e: mel.WebEvent):  # pylint: disable=unused-argument
 def page_scaffold():
     """Page scaffold component"""
     app_state = me.state(AppState)
-    action = (
-        AsyncAction(
+    # Conditionally enable polling to reduce background load
+    if app_state and app_state.enable_polling and app_state.polling_interval > 0:
+        action = AsyncAction(
             value=app_state, duration_seconds=app_state.polling_interval
         )
-        if app_state
-        else None
-    )
-    async_poller(action=action, trigger_event=refresh_app_state)
+        async_poller(action=action, trigger_event=refresh_app_state)
 
     sidenav('')
 

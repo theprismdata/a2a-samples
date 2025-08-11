@@ -17,7 +17,8 @@ import mesop as me
 from components.api_key_dialog import api_key_dialog
 from components.page_scaffold import page_scaffold
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.wsgi import WSGIMiddleware
 from pages.agent_list import agent_list_page
 from pages.conversation import conversation_page
@@ -191,6 +192,22 @@ if __name__ == '__main__':
     import uvicorn
 
     app = FastAPI(lifespan=lifespan)
+
+    @app.websocket("/__ws__")
+    async def websocket_endpoint(websocket: WebSocket):
+        await websocket.accept()
+        try:
+            while True:
+                # Send state updates through WebSocket
+                await websocket.send_json({
+                    "type": "state_update",
+                    "data": AppState().dict()
+                })
+                await asyncio.sleep(1)  # Send updates every second
+        except Exception as e:
+            print(f"WebSocket error: {e}")
+        finally:
+            await websocket.close()
 
     # Setup the connection details, these should be set in the environment
     host = '127.0.0.1'  # Use localhost for both server and client

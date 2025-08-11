@@ -88,7 +88,9 @@ class AppState:
     )
     # This is used to track the message sent to agent with form data
     form_responses: dict[str, str] = dataclasses.field(default_factory=dict)
-    polling_interval: int = 1
+    # Polling configuration
+    enable_polling: bool = True
+    polling_interval: int = 5
 
     # Added for API key management
     api_key: str = ''

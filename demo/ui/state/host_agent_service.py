@@ -1,4 +1,5 @@
 import json
+import asyncio
 import os
 import sys
 import traceback
@@ -78,6 +79,7 @@ async def ListRemoteAgents():
         return response.result
     except Exception as e:
         print('Failed to read agents', e)
+    return []
 
 
 async def AddRemoteAgent(path: str):
@@ -105,6 +107,7 @@ async def GetProcessingMessages():
         return dict(response.result)
     except Exception as e:
         print('Error getting pending messages', e)
+    return {}
 
 
 def GetMessageAliases():
@@ -136,30 +139,37 @@ async def ListMessages(conversation_id: str) -> list[Message]:
 async def UpdateAppState(state: AppState, conversation_id: str):
     """Update the app state."""
     try:
+        # Optionally fetch messages for the current conversation
         if conversation_id:
             state.current_conversation_id = conversation_id
             messages = await ListMessages(conversation_id)
-            if not messages:
-                state.messages = []
-            else:
-                state.messages = [convert_message_to_state(x) for x in messages]
-        conversations = await ListConversations()
-        if not conversations:
-            state.conversations = []
-        else:
-            state.conversations = [
-                convert_conversation_to_state(x) for x in conversations
-            ]
-
-        state.task_list = []
-        for task in await GetTasks():
-            state.task_list.append(
-                SessionTask(
-                    context_id=extract_conversation_id(task),
-                    task=convert_task_to_state(task),
-                )
+            state.messages = (
+                [] if not messages else [convert_message_to_state(x) for x in messages]
             )
-        state.background_tasks = await GetProcessingMessages()
+
+        # Fetch conversations, tasks, and pending messages in parallel
+        conversations, tasks, background = await asyncio.gather(
+            ListConversations(),
+            GetTasks(),
+            GetProcessingMessages(),
+        )
+
+        state.conversations = (
+            []
+            if not conversations
+            else [convert_conversation_to_state(x) for x in conversations]
+        )
+
+        tasks = tasks or []
+        state.task_list = [
+            SessionTask(
+                context_id=extract_conversation_id(task),
+                task=convert_task_to_state(task),
+            )
+            for task in tasks
+        ]
+
+        state.background_tasks = background or {}
         state.message_aliases = GetMessageAliases()
     except Exception as e:
         print('Failed to update state: ', e)
