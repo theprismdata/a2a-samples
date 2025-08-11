@@ -33,7 +33,7 @@ from .state import (
 )
 
 
-server_url = 'http://localhost:12000'
+server_url = 'http://127.0.0.1:12000'
 
 
 async def ListConversations() -> list[Conversation]:
@@ -118,6 +118,7 @@ async def GetTasks():
         return response.result
     except Exception as e:
         print('Failed to list tasks ', e)
+    return []
 
 
 async def ListMessages(conversation_id: str) -> list[Message]:

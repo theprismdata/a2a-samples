@@ -62,7 +62,8 @@ def on_load(e: me.LoadEvent):  # pylint: disable=unused-argument
 security_policy = me.SecurityPolicy(
     allowed_script_srcs=[
         'https://cdn.jsdelivr.net',
-    ]
+    ],
+    dangerously_disable_trusted_types=True
 )
 
 
@@ -170,13 +171,14 @@ agent_server = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     httpx_client_wrapper.start()
+    global agent_server
     agent_server = ConversationServer(app, httpx_client_wrapper())
     app.openapi_schema = None
     app.mount(
         '/',
         WSGIMiddleware(
             me.create_wsgi_app(
-                debug_mode=os.environ.get('DEBUG_MODE', '') == 'true'
+                debug_mode=False  # Disable debug mode to prevent frequent hot-reload
             )
         ),
     )
@@ -191,8 +193,8 @@ if __name__ == '__main__':
     app = FastAPI(lifespan=lifespan)
 
     # Setup the connection details, these should be set in the environment
-    host = os.environ.get('A2A_UI_HOST', '0.0.0.0')
-    port = int(os.environ.get('A2A_UI_PORT', '12000'))
+    host = '127.0.0.1'  # Use localhost for both server and client
+    port = 12000
 
     # Set the client to talk to the server
     host_agent_service.server_url = f'http://{host}:{port}'
@@ -202,4 +204,5 @@ if __name__ == '__main__':
         host=host,
         port=port,
         timeout_graceful_shutdown=0,
+        reload=False  # Disable auto-reload
     )
