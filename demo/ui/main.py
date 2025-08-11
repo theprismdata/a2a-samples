@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from contextlib import asynccontextmanager
 
 import httpx
+from copy import deepcopy
 import mesop as me
 
 from components.api_key_dialog import api_key_dialog
@@ -77,6 +78,7 @@ security_policy = me.SecurityPolicy(
 def home_page():
     """Main Page"""
     state = me.state(AppState)
+    state.enable_polling = True
     # Show API key dialog if needed
     api_key_dialog()
     with page_scaffold():  # pylint: disable=not-context-manager
@@ -92,6 +94,9 @@ def home_page():
 def another_page():
     """Another Page"""
     api_key_dialog()
+    # Disable polling on the Agents page to avoid background refresh loops
+    app_state = me.state(AppState)
+    app_state.enable_polling = False
     agent_list_page(me.state(AppState))
 
 
@@ -104,6 +109,7 @@ def another_page():
 def chat_page():
     """Conversation Page."""
     api_key_dialog()
+    me.state(AppState).enable_polling = True
     conversation_page(me.state(AppState))
 
 
@@ -116,6 +122,7 @@ def chat_page():
 def event_page():
     """Event List Page."""
     api_key_dialog()
+    me.state(AppState).enable_polling = True
     event_list_page(me.state(AppState))
 
 
@@ -128,6 +135,7 @@ def event_page():
 def settings_page():
     """Settings Page."""
     api_key_dialog()
+    me.state(AppState).enable_polling = True
     settings_page_content()
 
 
@@ -140,6 +148,7 @@ def settings_page():
 def task_page():
     """Task List Page."""
     api_key_dialog()
+    me.state(AppState).enable_polling = True
     task_list_page(me.state(AppState))
 
 
@@ -190,6 +199,16 @@ async def lifespan(app: FastAPI):
 
 if __name__ == '__main__':
     import uvicorn
+    from uvicorn.config import LOGGING_CONFIG as UVICORN_LOGGING_CONFIG
+
+    # Customize log format to include filename and line number
+    LOGGING_WITH_LINES = deepcopy(UVICORN_LOGGING_CONFIG)
+    LOGGING_WITH_LINES["formatters"]["default"]["fmt"] = (
+        "%(levelprefix)s %(asctime)s [%(filename)s:%(lineno)d %(name)s] %(message)s"
+    )
+    LOGGING_WITH_LINES["formatters"]["access"]["fmt"] = (
+        '%(levelprefix)s %(asctime)s [%(filename)s:%(lineno)d uvicorn.access] %(client_addr)s - "%(request_line)s" %(status_code)s'
+    )
 
     app = FastAPI(lifespan=lifespan)
 
@@ -221,5 +240,6 @@ if __name__ == '__main__':
         host=host,
         port=port,
         timeout_graceful_shutdown=0,
-        reload=False  # Disable auto-reload
+        reload=False,  # Disable auto-reload
+        log_config=LOGGING_WITH_LINES,
     )

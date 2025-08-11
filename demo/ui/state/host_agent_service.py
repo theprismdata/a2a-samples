@@ -1,13 +1,14 @@
 import json
 import asyncio
 import os
+import time
 import sys
 import traceback
 import uuid
 
 from typing import Any
 
-from a2a.types import FileWithBytes, Message, Part, Role, Task, TaskState
+from a2a.types import AgentCard, FileWithBytes, Message, Part, Role, Task, TaskState
 from service.client.client import ConversationClient
 from service.types import (
     Conversation,
@@ -36,6 +37,10 @@ from .state import (
 
 server_url = 'http://127.0.0.1:12000'
 
+# Simple in-memory caches to avoid tight polling loops
+_agents_cache: list[AgentCard] = []
+_agents_cache_ts: float = 0.0
+_AGENTS_CACHE_TTL_SEC = 10.0
 
 async def ListConversations() -> list[Conversation]:
     client = ConversationClient(server_url)
@@ -72,11 +77,21 @@ async def CreateConversation() -> Conversation:
     return Conversation(conversation_id='', is_active=False)
 
 
-async def ListRemoteAgents():
+async def ListRemoteAgents(force_refresh: bool = False):
+    global _agents_cache_ts, _agents_cache
     client = ConversationClient(server_url)
     try:
+        now = time.time()
+        if (
+            not force_refresh
+            and now - _agents_cache_ts < _AGENTS_CACHE_TTL_SEC
+            and _agents_cache
+        ):
+            return _agents_cache
         response = await client.list_agents(ListAgentRequest())
-        return response.result
+        _agents_cache = response.result or []
+        _agents_cache_ts = now
+        return _agents_cache
     except Exception as e:
         print('Failed to read agents', e)
     return []

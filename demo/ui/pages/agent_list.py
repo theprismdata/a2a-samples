@@ -15,12 +15,24 @@ from utils.agent_card import get_agent_card
 def agent_list_page(app_state: AppState) -> None:
     """Agents List Page."""
     state = me.state(AgentState)
+    # Disable global polling on this page to avoid repeated background refreshes
+    app = me.state(AppState)
+    app.enable_polling = False
     with page_scaffold():  # pylint: disable=not-context-manager
         with page_frame():
             with header('Remote Agents', 'smart_toy'):
                 pass
-            agents = asyncio.run(ListRemoteAgents())
-            agents_list(agents)
+            # Load once per visit or when explicitly refreshed
+            if not state.agents_loaded:
+                state.agents = asyncio.run(ListRemoteAgents())
+                state.agents_loaded = True
+            agents_list(state.agents)
+            me.button(
+                'Refresh',
+                on_click=refresh_agents,
+                type='stroked',
+                style=me.Style(margin=me.Margin(top=10)),
+            )
             with dialog(state.agent_dialog_open):
                 with me.box(
                     style=me.Style(
@@ -106,3 +118,11 @@ async def save_agent(e: me.ClickEvent) -> None:
     state.agent_name = ''
     state.agent_description = ''
     state.agent_dialog_open = False
+
+
+async def refresh_agents(e: me.ClickEvent) -> None:
+    state = me.state(AgentState)
+    try:
+        state.agents = await ListRemoteAgents(force_refresh=True)
+    except Exception as ex:  # noqa: F841
+        pass
